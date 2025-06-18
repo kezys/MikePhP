@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Policy;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -16,25 +17,18 @@ namespace MikePhP
         private List<Panel> tabelas = new List<Panel>();
         private DataGridViewRow origem = null;
         private DataGridViewRow destino = null;
-        private Ajuda janelaAjuda = null;
         private Dictionary<(DataGridViewCell, DataGridViewCell), (Panel from, Panel to)> relacoes = new Dictionary<(DataGridViewCell, DataGridViewCell), (Panel from, Panel to)>();
-        private const int resizeAreaSize = 10;
-
-
 
         public Interface()
         {
             InitializeComponent();
             this.DoubleBuffered = true;
-
             pnlDrag.Dock = DockStyle.Top;
             btnClose.Dock = DockStyle.Right;
             btnMax.Dock = DockStyle.Right;
             btnMin.Dock = DockStyle.Right;
             this.MinimumSize = new Size(500, 600);
             this.FormBorderStyle = FormBorderStyle.None;
-
-
         }
 
         protected override void WndProc(ref Message m)
@@ -109,11 +103,9 @@ namespace MikePhP
                         return;
                     }
                 }
-
                 AdicionarTabela(textBoxNomeTabela.Text);
             }
         }
-
         private void AdicionarTabela(string nomeTabela)
         {
          
@@ -205,7 +197,6 @@ namespace MikePhP
                 }
             };
 
-
             dgv.KeyDown += (s, e) =>
             {
                 if (e.Control && e.KeyCode == Keys.R)
@@ -256,8 +247,8 @@ namespace MikePhP
 
             this.Controls.Add(tabelaPanel);
         }
-            int larguraPainel = 605;
-            int alturaInicial = 100;
+        int larguraPainel = 605;
+        int alturaInicial = 100;
 
         private void AdicionarLinhaTabela(DataGridView dgv, Panel tabelaPanel, Label tabelaLabel)
         {
@@ -292,7 +283,6 @@ namespace MikePhP
         private void OnTabelaPanelMouseUp(object sender, MouseEventArgs e, Panel tabelaPanel)
         {
             tabelaSelecionada = null;
-
         }
 
         private void ObterDadosDasTabelas(string bancoDeDadosEscolhido, string nomeBaseDeDados)
@@ -412,14 +402,166 @@ namespace MikePhP
                 string bancoDeDadosEscolhido = escolherBancoDialog.BancoEscolhido;
 
                 ObterDadosDasTabelas(bancoDeDadosEscolhido, nomeBanco);
+
+                GerarHtmlComCrud("Pagina.html", nomeBanco);
             }
+        }
+
+        private void GerarHtmlComCrud(string caminhoDestino, string nome)
+        {
+            var todosPainéis = this.Controls.OfType<Panel>();
+            var html = new StringBuilder();
+
+            html.AppendLine("<!DOCTYPE html>");
+            html.AppendLine("<html lang='pt'>");
+            html.AppendLine("<head>");
+            html.AppendLine("<meta charset='UTF-8'>");
+            html.AppendLine("<title>CRUD Simulado</title>");
+            html.AppendLine("<style>");
+            html.AppendLine("  body { font-family: Arial, sans-serif; background: #1e1e2f; color: #f0f0f0; padding: 20px; }");
+            html.AppendLine("  h1, h2 { color: #00bcd4; }");
+            html.AppendLine("  .tabela { background: #2e2e3f; border: 1px solid #444; border-radius: 10px; padding: 15px; margin-bottom: 30px; }");
+            html.AppendLine("  .campo { display: flex; align-items: center; margin-bottom: 10px; }");
+            html.AppendLine("  .campo label { flex: 1; }");
+            html.AppendLine("  .campo input { flex: 2; padding: 6px; border: none; border-radius: 5px; background: #444; color: #fff; }");
+            html.AppendLine("  .crud-btn { padding: 8px 12px; margin: 5px 5px 10px 0; background: #00bcd4; border: none; border-radius: 6px; color: white; cursor: pointer; }");
+            html.AppendLine("  .crud-btn:hover { background: #0097a7; }");
+            html.AppendLine("  table { width: 100%; border-collapse: collapse; margin-top: 15px; }");
+            html.AppendLine("  th, td { border: 1px solid #555; padding: 8px; text-align: left; }");
+            html.AppendLine("  th { background-color: #3f3f5f; }");
+            html.AppendLine("</style>");
+            html.AppendLine("</head><body>");
+            html.AppendLine($"<h1>CRUD {nome}</h1>");
+
+            html.AppendLine("<div id='menu-principal'>");
+            foreach (Panel tabela in todosPainéis)
+            {
+                if (!tabela.Controls.OfType<DataGridView>().Any())
+                    continue;
+
+                Label tituloLabel = tabela.Controls.OfType<Label>().FirstOrDefault();
+                string nomeTabela = tituloLabel?.Text ?? "Sem_Nome";
+                string idTabela = nomeTabela.Replace(" ", "_");
+
+                html.AppendLine($"  <button class='crud-btn' onclick='mostrarSecao(\"tabela-{idTabela}\")'>{nomeTabela}</button>");
+
+                html.AppendLine($"<div class='tabela' id='tabela-{idTabela}' style='display:none;'>");
+                html.AppendLine($"  <h2>{nomeTabela}</h2>");
+
+                DataGridView dgv = tabela.Controls.OfType<DataGridView>().FirstOrDefault();
+
+                if (dgv != null)
+                {
+                    foreach (DataGridViewRow row in dgv.Rows)
+                    {
+                        if (!row.IsNewRow)
+                        {
+                            var nomeCampo = row.Cells[0].Value?.ToString() ?? "";
+                            var tipoCampo = row.Cells[1].Value?.ToString() ?? "";
+                            bool isAutoIncrement = (bool)(row.Cells[2].Value ?? false);
+
+                            string atributo = isAutoIncrement ? "readonly" : "";
+
+                            html.AppendLine("  <div class='campo'>");
+                            html.AppendLine($"    <label for='{idTabela}_{nomeCampo}'>{nomeCampo}:</label>");
+                            html.AppendLine($"    <input type='text' id='{idTabela}_{nomeCampo}' placeholder='{tipoCampo}' {atributo} />");
+                            html.AppendLine("  </div>");
+                        }
+                    }
+                }
+
+                html.AppendLine($"  <button class='crud-btn' onclick='criar(\"{idTabela}\")'>Criar</button>");
+                html.AppendLine($"  <button class='crud-btn' onclick='ler(\"{idTabela}\")'>Ler</button>");
+                html.AppendLine($"  <button class='crud-btn' onclick='atualizar(\"{idTabela}\")'>Atualizar</button>");
+                html.AppendLine($"  <button class='crud-btn' onclick='eliminar(\"{idTabela}\")'>Eliminar</button>");
+
+                html.AppendLine($"  <div id='output-{idTabela}'></div>");
+                html.AppendLine("</div>");
+            }
+
+            html.AppendLine(@"
+                    <script>
+                        const db = {};
+                        const autoIncrementId = {};
+
+                        function mostrarSecao(id) {
+                            const divSelecionada = document.getElementById(id);
+                            const estáVisível = divSelecionada.style.display === 'block';
+
+                            document.querySelectorAll('.tabela').forEach(div => div.style.display = 'none');
+
+                            if (!estáVisível) {
+                                divSelecionada.style.display = 'block';
+                            }
+                        }
+
+                        function criar(id) {
+                            if (!db[id]) db[id] = [];
+                            if (!autoIncrementId[id]) autoIncrementId[id] = 1;
+
+                            const inputs = document.querySelectorAll(`#tabela-${id} input`);
+                            const novoItem = {};
+                            let campoId = null;
+
+                            inputs.forEach(input => {
+                                const nome = input.id.replace(`${id}_`, """");
+                                if (nome.startsWith(""id_""+id)) { 
+                                    novoItem[nome] = autoIncrementId[id]++;
+                                    campoId = nome;
+                                }else{
+                                    novoItem[nome] = input.value;
+                                }
+                            });
+
+                            db[id].push(novoItem);
+                            alert(""Registo criado com ID: "" + novoItem[campoId]);
+                            ler(id);
+                        }
+
+                        function ler(id) {
+                            const output = document.getElementById('output-' + id);
+                            const dados = db[id] || [];
+                            if (dados.length === 0) {
+                                output.innerHTML = '<p>Nenhum registo encontrado.</p>';
+                                return;
+                            }
+
+                            let html = '<table border=""1""><tr>';
+                            Object.keys(dados[0]).forEach(col => html += `<th>${col}</th>`);
+                            html += '</tr>';
+
+                            dados.forEach(linha => {
+                                html += '<tr>';
+                                Object.values(linha).forEach(val => html += `<td>${val}</td>`);
+                                html += '</tr>';
+                            });
+
+                            html += '</table>';
+                            output.innerHTML = html;
+                        }
+
+                        function atualizar(id) {
+                            alert('Função atualizar simulada. (exercício para implementar)');
+                        }
+
+                        function eliminar(id) {
+                            db[id] = [];
+                            document.getElementById('output-' + id).innerHTML = '<p>Todos os registos foram eliminados.</p>';
+                        }
+                    </script>
+                    ");
+
+            html.AppendLine("</body></html>");
+
+            File.WriteAllText(caminhoDestino, html.ToString(), Encoding.UTF8);
+            MessageBox.Show("HTML com CRUD gerado com sucesso!");
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             var g = e.Graphics;
-            var pen = new Pen(Color.Black, 2);
+            var pen = new Pen(Color.White, 2);
 
             foreach (var relacao in relacoes)
             {
@@ -444,7 +586,6 @@ namespace MikePhP
                 g.DrawLine(pen, new Point(middleX, destinoPoint.Y), destinoPoint);
             }
         }
-
         private void ImportarTabelas(string caminhoFicheiro)
         {
             if (tabelas.Count >0)
@@ -458,11 +599,11 @@ namespace MikePhP
             }
             foreach (var painel in tabelas)
             {
-                this.Controls.Remove(painel); // remove do formulário
-                painel.Dispose();             // liberta os recursos
+                this.Controls.Remove(painel);
+                painel.Dispose();
             }
 
-            tabelas.Clear(); // limpa a lista
+            tabelas.Clear();
             relacoes.Clear();
             }
 
@@ -558,7 +699,6 @@ namespace MikePhP
             var json = JsonSerializer.Serialize(dadosExport, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(caminhoFicheiro, json);
             MessageBox.Show("Exportação concluída.");
-
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -573,7 +713,6 @@ namespace MikePhP
 
         private void button2_Click(object sender, EventArgs e)
         {
-
             SaveFileDialog save = new SaveFileDialog();
             save.Filter = "JSON files (*.json)|*.json";
             if (save.ShowDialog() == DialogResult.OK)
@@ -582,17 +721,53 @@ namespace MikePhP
             }
         }
 
+        private List<(Control control, string texto)> passos;
+        private int passoAtual = 0;
+
         private void btnAjuda_Click(object sender, EventArgs e)
         {
-            if (janelaAjuda == null || janelaAjuda.IsDisposed)
+            passoAtual = 0;
+            IniciarTour();
+        }
+
+        private void IniciarTour()
+        {
+            passos = new List<(Control, string)>
             {
-                janelaAjuda = new Ajuda();
-                janelaAjuda.Show();
-            }
-            else
+                (textBoxNomeTabela, "Nome da tabela a ser criada."),
+                (btnAdicionarTabela, "Adicionar a tabela ao painel."),
+                (btnConcluirModelo, "Concluir e salvar o modelo."),
+                (button1, "Importação de um modelo."),
+                (button2, "Exportação do modelo para JSON.")
+            };
+
+            MostrarTooltipProximoPasso();
+        }
+
+        private void MostrarTooltipProximoPasso()
+        {
+            if (passoAtual >= passos.Count) return;
+
+            var (controlo, texto) = passos[passoAtual];
+
+            var posicao = controlo.PointToScreen(Point.Empty);
+
+            int centroX = posicao.X + controlo.Width / 2;
+            int centroY = posicao.Y + controlo.Height / 2;
+
+            var tooltip = new TooltipForm(texto);
+
+            int tooltipX = centroX - tooltip.Width / 2;
+            int tooltipY = centroY - tooltip.Height / 2;
+
+            tooltip.Location = new Point(tooltipX + 220, tooltipY);
+
+            var resultado = tooltip.ShowDialog();
+
+            if (resultado == DialogResult.OK)
             {
-                MessageBox.Show("A janela de ajuda já está aberta.");
-                janelaAjuda.BringToFront();
+                passoAtual++;
+                MostrarTooltipProximoPasso();
             }
         }
 
@@ -673,6 +848,5 @@ namespace MikePhP
     {
         public string tabela { get; set; }
         public string coluna { get; set; }
-
     }
 }
